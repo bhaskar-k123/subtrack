@@ -1,11 +1,12 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { Onboarding } from "@/components/Onboarding";
+import { Onboarding } from "@/components/features/onboarding/Onboarding";
 import { initializeDatabase } from "@/lib/db";
 import { getSetting } from "@/lib/db/settings";
 import { useAppStore } from "@/stores/appStore";
@@ -76,7 +77,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppContent />
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

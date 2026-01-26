@@ -37,8 +37,8 @@ import { getTransactions, getTransactionCount, deleteTransaction } from '@/lib/d
 import { getAllCategories } from '@/lib/db/categories';
 import { getAllAccounts } from '@/lib/db/accounts';
 import type { Transaction, Category, Account } from '@/types/database';
-import { TransactionEditDialog } from '@/components/transactions/TransactionEditDialog';
-import { TransactionForm } from '@/components/transactions/TransactionForm';
+import { TransactionEditDialog } from '@/components/features/transactions/TransactionEditDialog';
+import { TransactionForm } from '@/components/features/transactions/TransactionForm';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 

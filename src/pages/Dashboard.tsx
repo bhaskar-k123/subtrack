@@ -16,8 +16,8 @@ import { startOfMonth, endOfMonth, subMonths } from '@/lib/utils/dates';
 import { getTransactions, getRecentTransactions } from '@/lib/db/transactions';
 import { getSubscriptionMetrics, getUpcomingRenewals } from '@/lib/db/subscriptions';
 import { getCategorySpending } from '@/lib/db/categories';
-import { SpendingTrendChart } from '@/components/charts/SpendingTrendChart';
-import { CategoryDonutChart } from '@/components/charts/CategoryDonutChart';
+import { SpendingTrendChart } from '@/components/features/charts/SpendingTrendChart';
+import { CategoryDonutChart } from '@/components/features/charts/CategoryDonutChart';
 import type { TransactionWithDetails, SubscriptionWithDetails } from '@/types/database';
 
 // Financial goals will be loaded from database in future update
@@ -87,21 +87,36 @@ export default function Dashboard() {
         color: item.category.color,
       }));
 
-      const monthlyData: { month: string; amount: number }[] = [];
-      for (let i = 11; i >= 0; i--) {
+      // Create array of 12 months for parallel fetching
+      const monthsToFetch = Array.from({ length: 12 }, (_, i) => {
         const monthStart = startOfMonth(subMonths(now, i));
         const monthEnd = endOfMonth(subMonths(now, i));
-        const txs = await getTransactions({
-          startDate: monthStart,
-          endDate: monthEnd,
-          transactionType: 'debit',
-        }, 10000, 0);
-        const total = txs.reduce((sum, tx) => sum + tx.amount, 0);
-        monthlyData.push({
-          month: formatDate(monthStart, 'MMM'),
-          amount: total,
-        });
-      }
+        return { monthStart, monthEnd };
+      });
+
+      // Parallel fetch using Promise.all
+      const monthlyDataResults = await Promise.all(
+        monthsToFetch.map(async ({ monthStart, monthEnd }) => {
+          const txs = await getTransactions({
+            startDate: monthStart,
+            endDate: monthEnd,
+            transactionType: 'debit',
+          }, 10000, 0);
+          const total = txs.reduce((sum, tx) => sum + tx.amount, 0);
+          return {
+            month: formatDate(monthStart, 'MMM'),
+            amount: total,
+          };
+        })
+      );
+
+      const monthlyData = monthlyDataResults.reverse(); // Reverse to get chronological order if needed, assuming user wants recent first? The original loop was 11 downto 0, pushing, so it was chronological?
+      // Wait, original: loop 11 down to 0, push. subMonths(now, 11) is oldest. So it pushed Oldest -> Newest.
+      // My map: i=0 is current month (subMonths(now, 0)). i=11 is oldest. 
+      // So map output is [Current, Previous, ..., Oldest].
+      // Original: 11 (oldest) -> push. 10 -> push. ... 0 -> push. Result: [Oldest, ..., Current].
+      // My map output needs to be reversed to match [Oldest, ..., Current].
+      monthlyData.reverse();
 
       setMetrics({
         totalSpending: currentSpending,

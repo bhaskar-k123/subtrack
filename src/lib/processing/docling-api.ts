@@ -46,7 +46,7 @@ export async function checkServerHealth(): Promise<HealthStatus | null> {
         }
         return null;
     } catch (error) {
-        console.log('Backend server not available, using local processing');
+        // Backend server not available, using local processing
         return null;
     }
 }
