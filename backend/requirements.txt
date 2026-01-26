@@ -1,0 +1,12 @@
+# SubTrack Backend Dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Document Processing
+docling>=2.0.0
+
+# Optional: For better PDF handling without Docling
+# PyMuPDF>=1.23.0
+pdfplumber>=0.10.3
+pandas>=2.1.0

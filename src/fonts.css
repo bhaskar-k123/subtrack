@@ -1,0 +1,13 @@
+/* Fonts abstraction layer */
+/* Fallback to system fonts since we cannot reach Google Fonts or npm */
+
+/* 
+ * We are relying on the Tailwind config's font stack which already includes system fonts.
+ * By not importing anything here, we just use the next available font in the list.
+ * 
+ * tailsind.config.ts has: 
+ * 'Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', ...
+ * 
+ * Since 'Plus Jakarta Sans' isn't loaded, browser will use 'Segoe UI' (Windows) or others.
+ * This satisfies the "offline" requirement.
+ */
