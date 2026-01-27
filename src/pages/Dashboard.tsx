@@ -77,7 +77,7 @@ export default function Dashboard() {
         : 0;
 
       const subMetrics = await getSubscriptionMetrics();
-      const recent = await getRecentTransactions(4);
+      const recent = await getRecentTransactions(4); // Fetches 4 recent transactions
       const upcoming = await getUpcomingRenewals(30);
 
       const catSpending = await getCategorySpending(currentMonthStart, currentMonthEnd);
@@ -127,7 +127,7 @@ export default function Dashboard() {
         totalIncome,
       });
 
-      setRecentTransactions(recent);
+      setRecentTransactions(recent); // This already sets the state with 4 transactions
       setUpcomingRenewals(upcoming);
       setCategorySpending(categoryData);
       setMonthlySpending(monthlyData);
@@ -308,7 +308,7 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Transactions */}
-          <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="bg-card border border-border rounded-2xl p-6 overflow-hidden">
             <h3 className="text-lg font-semibold mb-4">Recent transaction</h3>
             {recentTransactions.length > 0 ? (
               <div className="space-y-3">
@@ -325,10 +325,19 @@ export default function Dashboard() {
                           color: tx.category?.color || '#6B7280'
                         }}
                       >
-                        {tx.merchantNormalized.charAt(0).toUpperCase()}
+                        {(tx.merchantNormalized || tx.merchantRaw || '?').charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">{tx.merchantNormalized}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="font-medium text-sm truncate max-w-[140px] flex-1">
+                            {tx.merchantNormalized || tx.merchantRaw || 'Unknown'}
+                          </p>
+                          {tx.paymentMethod === 'UPI' ? (
+                            <span className="badge-method badge-upi shrink-0">UPI</span>
+                          ) : tx.paymentMethod ? (
+                            <span className="badge-method badge-other shrink-0">OTH</span>
+                          ) : null}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {formatRelativeDate(tx.date)}
                         </p>
@@ -345,21 +354,23 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Monthly Spending Summary */}
-          <div className="bg-card border border-border rounded-2xl p-6">
-            <h3 className="text-lg font-semibold mb-4">Monthly summary</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Transactions</span>
-                <span className="font-medium">{metrics.transactionCount}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Subscriptions</span>
-                <span className="font-medium">{metrics.subscriptionCount} active</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Subscription cost</span>
-                <span className="font-medium">₹{metrics.subscriptionCost.toFixed(2)}/mo</span>
+          {/* Monthly Summary & Goals */}
+          <div className="space-y-4">
+            <div className="bg-card border border-border rounded-2xl p-6">
+              <h3 className="text-lg font-semibold mb-4">Monthly summary</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Transactions</span>
+                  <span className="font-medium">{metrics.transactionCount}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Subscriptions</span>
+                  <span className="font-medium">{metrics.subscriptionCount} active</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Subscription cost</span>
+                  <span className="font-medium">₹{metrics.subscriptionCost.toFixed(2)}/mo</span>
+                </div>
               </div>
             </div>
           </div>

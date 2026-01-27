@@ -45,9 +45,11 @@ import { bulkCreateTransactions, checkDuplicate, getUploadedStatements, deleteSt
 import { getAllAccounts, createAccount } from '@/lib/db/accounts';
 import { getAllCategories } from '@/lib/db/categories';
 import type { Account, Category, ExtractedTransaction } from '@/types/database';
+import { syncPush } from '@/lib/sync';
 import { toast } from 'sonner';
 
 interface ProcessedFile {
+  id: string;
   file: File;
   status: 'pending' | 'processing' | 'success' | 'error';
   progress: number;
@@ -109,6 +111,22 @@ export default function UploadPage() {
     }
   }
 
+  // Auto-fill password when account changes
+  useEffect(() => {
+    if (!selectedAccountId) return;
+    const account = accounts.find(a => a.id === selectedAccountId);
+    if (account?.pdfPassword) {
+      setFiles(prev => prev.map(f => {
+        // Only auto-fill if empty and status is pending
+        if (!f.password && f.status === 'pending') {
+          return { ...f, password: account.pdfPassword };
+        }
+        return f;
+      }));
+      toast.info('Applied saved PDF password');
+    }
+  }, [selectedAccountId, accounts]);
+
   async function handleDeleteStatement(sourceFileName: string) {
     if (!confirm(`Delete all transactions from "${sourceFileName}"? This cannot be undone.`)) {
       return;
@@ -119,37 +137,16 @@ export default function UploadPage() {
       // Refresh statements list
       const statements = await getUploadedStatements();
       setUploadedStatements(statements);
+
+      // Sync deletion to backend immediately
+      await syncPush();
+
     } catch (error) {
       toast.error('Failed to delete statement');
     }
   }
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    addFiles(droppedFiles);
-  }, []);
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
-      addFiles(selectedFiles);
-    }
-  }, []);
-
-  function addFiles(newFiles: File[]) {
+  const addFiles = useCallback((newFiles: File[]) => {
     const validFiles = newFiles.filter(file => {
       const isValid = file.type === 'application/pdf' ||
         file.type === 'text/csv' ||
@@ -171,26 +168,55 @@ export default function UploadPage() {
     setFiles(prev => [
       ...prev,
       ...validFiles.map(file => ({
+        id: crypto.randomUUID(),
         file,
         status: 'pending' as const,
         progress: 0,
         transactions: [],
-        password: '',
+        password: accounts.find(a => a.id === selectedAccountId)?.pdfPassword || '',
       })),
     ]);
-  }
+  }, [selectedAccountId, accounts]);
 
-  function updateFilePassword(index: number, password: string) {
-    setFiles(prev => prev.map((f, i) =>
-      i === index ? { ...f, password } : f
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    addFiles(droppedFiles);
+  }, [addFiles]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      addFiles(selectedFiles);
+    }
+  }, [addFiles]);
+
+
+
+  function updateFilePassword(id: string, password: string) {
+    setFiles(prev => prev.map(f =>
+      f.id === id ? { ...f, password } : f
     ));
   }
 
-  async function processFile(index: number) {
-    const fileItem = files[index];
+  async function processFile(id: string) {
+    const fileItem = files.find(f => f.id === id);
+    if (!fileItem) return;
 
-    setFiles(prev => prev.map((f, i) =>
-      i === index ? { ...f, status: 'processing', progress: 10 } : f
+    setFiles(prev => prev.map(f =>
+      f.id === id ? { ...f, status: 'processing', progress: 10 } : f
     ));
 
     try {
@@ -199,8 +225,8 @@ export default function UploadPage() {
       if (fileItem.file.name.endsWith('.csv') || fileItem.file.type === 'text/csv') {
         // Process CSV locally
         const text = await fileItem.file.text();
-        setFiles(prev => prev.map((f, i) =>
-          i === index ? { ...f, progress: 50 } : f
+        setFiles(prev => prev.map(f =>
+          f.id === id ? { ...f, progress: 50 } : f
         ));
 
         // Assume standard CSV format: Date, Description, Amount
@@ -212,14 +238,14 @@ export default function UploadPage() {
       } else if (serverAvailable) {
         // Use Docling API for PDF/images
         try {
-          setFiles(prev => prev.map((f, i) =>
-            i === index ? { ...f, progress: 30 } : f
+          setFiles(prev => prev.map(f =>
+            f.id === id ? { ...f, progress: 30 } : f
           ));
 
           const apiResult = await processDocumentWithDocling(fileItem.file, fileItem.password || undefined);
 
-          setFiles(prev => prev.map((f, i) =>
-            i === index ? { ...f, progress: 70 } : f
+          setFiles(prev => prev.map(f =>
+            f.id === id ? { ...f, progress: 70 } : f
           ));
 
           result = {
@@ -243,15 +269,15 @@ export default function UploadPage() {
         result = { transactions: [], metadata: {}, errors: [], validation: undefined };
       }
 
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? { ...f, progress: 80 } : f
+      setFiles(prev => prev.map(f =>
+        f.id === id ? { ...f, progress: 80 } : f
       ));
 
       // Check for duplicates and calculate confidence
       const processedTransactions = await Promise.all(
         result.transactions.map(async (tx) => {
           const duplicate = selectedAccountId
-            ? await checkDuplicate(selectedAccountId, tx.date, tx.amount, tx.merchantRaw)
+            ? await checkDuplicate(selectedAccountId, tx.date, tx.amount, tx.merchantRaw, tx.refNumber)
             : null;
 
           return {
@@ -263,8 +289,8 @@ export default function UploadPage() {
         })
       );
 
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? {
+      setFiles(prev => prev.map(f =>
+        f.id === id ? {
           ...f,
           status: 'success',
           progress: 100,
@@ -274,49 +300,14 @@ export default function UploadPage() {
       ));
 
       if (processedTransactions.length > 0) {
-        // AUTO-SAVE: Save all transactions immediately after extraction
-        try {
-          const transactionsToSave = processedTransactions.map(tx => ({
-            accountId: selectedAccountId,
-            date: tx.date,
-            merchantRaw: tx.merchantRaw,
-            merchantNormalized: normalizeMerchantName(tx.merchantRaw),
-            merchantId: null,
-            amount: tx.amount,
-            transactionType: tx.transactionType,
-            categoryId: null,
-            description: tx.description,
-            sourceType: 'statement' as const,
-            sourceFileName: fileItem.file.name,
-            confidenceScore: tx.confidenceScore,
-            isRecurring: false,
-            subscriptionId: null,
-            tags: [],
-            notes: null,
-          }));
-
-          const result = await bulkCreateTransactions(transactionsToSave);
-
-          toast.success(`Saved ${result.added.length} transactions${result.duplicates > 0 ? `, ${result.duplicates} duplicates skipped` : ''}`);
-
-          // Remove the file from queue after successful save
-          setFiles(prev => prev.filter((_, i) => i !== index));
-
-          // Refresh uploaded statements list
-          const statements = await getUploadedStatements();
-          setUploadedStatements(statements);
-
-        } catch (saveError) {
-          console.error('Save error:', saveError);
-          toast.error('Extracted but failed to save transactions');
-        }
+        toast.success(`Extracted ${processedTransactions.length} transactions. Click Review to import.`);
       } else {
         toast.info('No transactions found in file');
       }
     } catch (error) {
       console.error('Processing error:', error);
-      setFiles(prev => prev.map((f, i) =>
-        i === index ? {
+      setFiles(prev => prev.map(f =>
+        f.id === id ? {
           ...f,
           status: 'error',
           progress: 0,
@@ -327,8 +318,8 @@ export default function UploadPage() {
     }
   }
 
-  function removeFile(index: number) {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+  function removeFile(id: string) {
+    setFiles(prev => prev.filter(f => f.id !== id));
   }
 
   function startReview(fileItem: ProcessedFile) {
@@ -388,9 +379,12 @@ export default function UploadPage() {
           subscriptionId: null,
           tags: [],
           notes: null,
+          refNumber: tx.refNumber,
         }));
 
-      const result = await bulkCreateTransactions(transactionsToSave);
+      // If we are in review mode and user selected transactions, we allow duplicates
+      // because they explicitly chose them.
+      const result = await bulkCreateTransactions(transactionsToSave, { allowDuplicates: true });
 
       toast.success(`Added ${result.added.length} transactions${result.duplicates > 0 ? `, ${result.duplicates} duplicates skipped` : ''}`);
 
@@ -437,6 +431,7 @@ export default function UploadPage() {
         subscriptionId: null,
         tags: [],
         notes: null,
+        refNumber: tx.refNumber,
       }));
 
       const result = await bulkCreateTransactions(transactionsToSave);
@@ -612,13 +607,13 @@ export default function UploadPage() {
                         placeholder="PDF password (optional)"
                         className="w-40 h-8 text-xs"
                         value={fileItem.password || ''}
-                        onChange={(e) => updateFilePassword(index, e.target.value)}
+                        onChange={(e) => updateFilePassword(fileItem.id, e.target.value)}
                       />
                     )}
                   {fileItem.status === 'pending' && (
                     <Button
                       size="sm"
-                      onClick={() => processFile(index)}
+                      onClick={() => processFile(fileItem.id)}
                       disabled={!selectedAccountId}
                     >
                       Process
@@ -651,7 +646,7 @@ export default function UploadPage() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => removeFile(index)}
+                    onClick={() => removeFile(fileItem.id)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

@@ -55,30 +55,27 @@ def main():
     else:
         print_step("2/4", "Dependencies already installed \u2713")
 
-    # 3. Check Frontend
+    # 3. Check/Update Frontend
     static_dir = os.path.join(backend_dir, "static")
-    index_html = os.path.join(static_dir, "index.html")
+    frontend_dir = base_dir
+    dist_dir = os.path.join(frontend_dir, "dist")
     
-    if not os.path.exists(index_html):
-        print_step("3/4", "Setting up frontend...")
+    if not os.path.exists(dist_dir) or not os.path.exists(os.path.join(dist_dir, "index.html")):
+        print_step("3/4", "Setting up frontend (one-time setup)...")
+        if not run_command("npm install && npm run build", cwd=frontend_dir):
+            print("[ERROR] Frontend build failed.")
+            return
+    else:
+        print_step("3/4", "Syncing latest frontend build...")
         
-        frontend_dir = base_dir
-        dist_dir = os.path.join(frontend_dir, "dist")
-        
-        # If dist doesn't exist, we might need to build (or just error if user wants simple start)
-        # Assuming we want to try building if missing
-        if not os.path.exists(os.path.join(dist_dir, "index.html")):
-             print("      Building frontend (one-time setup)...")
-             if not run_command("npm install && npm run build", cwd=frontend_dir):
-                 print("[ERROR] Frontend build failed.")
-                 return
-
-        # Copy dist to backend/static
+    # Always copy dist to backend/static to ensure we serve the latest build
+    try:
         if os.path.exists(static_dir):
             shutil.rmtree(static_dir)
         shutil.copytree(dist_dir, static_dir)
-    else:
-        print_step("3/4", "Frontend already ready \u2713")
+        print("      Frontend synced to backend/static \u2713")
+    except Exception as e:
+        print(f"      [WARNING] Could not sync frontend: {e}")
 
     # 4. Start Server
     print_step("4/4", "Starting server...")
@@ -86,10 +83,25 @@ def main():
     print("      Press Ctrl+C to stop.\n")
 
     # Open browser after a slight delay
+    # Open browser after server is ready
     def open_browser():
-        time.sleep(2)
-        webbrowser.open("http://localhost:8000")
-    
+        import socket
+        host = "127.0.0.1"
+        port = 8000
+        max_retries = 30
+        
+        for _ in range(max_retries):
+            try:
+                with socket.create_connection((host, port), timeout=1):
+                    # Server is listening
+                    print("      Server is ready! Opening browser...")
+                    webbrowser.open(f"http://{host}:{port}")
+                    return
+            except (OSError, ConnectionRefusedError):
+                time.sleep(1)
+        
+        print("      [WARNING] Server took too long to start. Please open http://localhost:8000 manually.")
+
     import threading
     threading.Thread(target=open_browser, daemon=True).start()
 

@@ -269,6 +269,18 @@
     @apply bg-danger/15 text-danger border border-danger/20 rounded-full px-3 py-1 text-xs font-medium;
   }
 
+  .badge-method {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border;
+  }
+
+  .badge-upi {
+    @apply bg-primary/10 text-primary border-primary/20;
+  }
+
+  .badge-other {
+    @apply bg-muted text-muted-foreground border-border;
+  }
+
   /* Yellow accent button - Primary action */
   .btn-primary {
     @apply bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl transition-all;
@@ -463,5 +475,25 @@
   /* Number styling */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Utility classes for layout optimization */
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .max-h-screen-content {
+    max-height: calc(100vh - 120px);
   }
 }

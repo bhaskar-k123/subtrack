@@ -13,11 +13,11 @@ export function PageContainer({ children, className }: PageContainerProps) {
   return (
     <main
       className={cn(
-        "min-h-screen bg-background transition-all duration-300",
+        "min-h-screen bg-background transition-all duration-300 overflow-x-hidden",
         sidebarCollapsed ? "pl-16" : "pl-60"
       )}
     >
-      <div className={cn("p-6 lg:p-8 max-w-7xl mx-auto", className)}>
+      <div className={cn("p-4 lg:p-6 max-w-full mx-auto", className)}>
         {children}
       </div>
     </main>

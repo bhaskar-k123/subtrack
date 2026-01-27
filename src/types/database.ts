@@ -14,6 +14,7 @@ export interface Account {
   createdAt: Date;
   updatedAt: Date;
   notes: string | null;
+  pdfPassword?: string | null;
 }
 
 export interface Transaction {
@@ -37,6 +38,8 @@ export interface Transaction {
   createdAt: Date;
   updatedAt: Date;
   notes: string | null;
+  refNumber?: string | null;
+  paymentMethod?: string;
 }
 
 export interface Merchant {
@@ -98,6 +101,12 @@ export interface ProcessingLog {
   errorLog: string | null;
 }
 
+export interface DeletedLog {
+  id: string;
+  type: 'transaction' | 'account' | 'category' | 'merchant' | 'subscription';
+  deletedAt: Date;
+}
+
 export interface Setting {
   key: string;
   value: unknown;
@@ -138,6 +147,8 @@ export interface ExtractedTransaction {
   description: string | null;
   confidenceScore: number;
   isDuplicate?: boolean;
+  refNumber?: string;
+  paymentMethod?: string;
   existingTransactionId?: string;
 }
 

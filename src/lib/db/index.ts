@@ -1,12 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { 
-  Account, 
-  Transaction, 
-  Merchant, 
-  Subscription, 
-  Category, 
-  ProcessingLog, 
-  Setting 
+import type {
+  Account,
+  Transaction,
+  Merchant,
+  Subscription,
+  Category,
+  ProcessingLog,
+  Setting,
+  DeletedLog
 } from '@/types/database';
 
 // Default categories as specified in Database Design
@@ -41,10 +42,11 @@ class SubTrackDB extends Dexie {
   categories!: EntityTable<Category, 'id'>;
   processingLogs!: EntityTable<ProcessingLog, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
+  deletedLog!: EntityTable<DeletedLog, 'id'>;
 
   constructor() {
     super('SubTrackDB');
-    
+
     this.version(1).stores({
       accounts: 'id, name, status, type',
       transactions: 'id, [accountId+date], &transactionHash, date, merchantId, categoryId, subscriptionId',
@@ -54,6 +56,19 @@ class SubTrackDB extends Dexie {
       processingLogs: 'id, accountId, processingDate',
       settings: 'key'
     });
+
+    // Add version 2 with refNumber
+    this.version(2).stores({
+      transactions: 'id, [accountId+date], &transactionHash, date, merchantId, categoryId, subscriptionId, refNumber'
+    });
+    // Add version 3 with deletedLog
+    this.version(3).stores({
+      deletedLog: 'id, type, deletedAt'
+    });
+    // Add version 4 with paymentMethod
+    this.version(4).stores({
+      transactions: 'id, [accountId+date], &transactionHash, date, merchantId, categoryId, subscriptionId, refNumber, paymentMethod'
+    });
   }
 }
 
@@ -62,7 +77,7 @@ export const db = new SubTrackDB();
 // Initialize default data on first load
 export async function initializeDatabase(): Promise<void> {
   const categoryCount = await db.categories.count();
-  
+
   if (categoryCount === 0) {
     const now = new Date();
     const categories = DEFAULT_CATEGORIES.map(cat => ({
@@ -74,7 +89,7 @@ export async function initializeDatabase(): Promise<void> {
   }
 
   const settingsCount = await db.settings.count();
-  
+
   if (settingsCount === 0) {
     const now = new Date();
     const settings = DEFAULT_SETTINGS.map(setting => ({
@@ -95,12 +110,17 @@ export async function generateTransactionHash(
   accountId: string,
   date: Date,
   amount: number,
-  merchantRaw: string
+  merchantRaw: string,
+  refNumber?: string
 ): Promise<string> {
   const dateStr = date.toISOString().split('T')[0];
   const merchant = merchantRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const data = `${accountId}|${dateStr}|${amount}|${merchant}`;
-  
+  let data = `${accountId}|${dateStr}|${amount}|${merchant}`;
+
+  if (refNumber) {
+    data += `|${refNumber}`;
+  }
+
   const encoder = new TextEncoder();
   const dataBuffer = encoder.encode(data);
   const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);

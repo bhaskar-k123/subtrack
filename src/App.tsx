@@ -18,6 +18,9 @@ import Upload from "./pages/Upload";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
+import { syncPull } from "@/lib/sync";
+import { setupSyncHooks } from "@/lib/db/hooks";
+
 const queryClient = new QueryClient();
 
 function AppContent() {
@@ -27,6 +30,13 @@ function AppContent() {
   useEffect(() => {
     async function init() {
       await initializeDatabase();
+
+      // Restore data from SQLite if available (Sync Pull)
+      await syncPull();
+
+      // Setup auto-sync hooks for future changes
+      setupSyncHooks();
+
       await initialize();
 
       // Check if user has completed onboarding

@@ -30,6 +30,10 @@ import {
   Pencil,
   Trash2,
   CreditCard,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
@@ -41,6 +45,10 @@ import { TransactionEditDialog } from '@/components/features/transactions/Transa
 import { TransactionForm } from '@/components/features/transactions/TransactionForm';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { DateRange } from 'react-day-picker';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -58,6 +66,11 @@ export default function Transactions() {
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
+  const [minAmount, setMinAmount] = useState<string>('');
+  const [maxAmount, setMaxAmount] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Edit dialog
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -99,7 +112,7 @@ export default function Transactions() {
 
   useEffect(() => {
     loadTransactions();
-  }, [currentPage, searchQuery, categoryFilter, accountFilter, typeFilter, dateFilter]);
+  }, [currentPage, searchQuery, categoryFilter, accountFilter, typeFilter, dateFilter, customDateRange, minAmount, maxAmount, sortBy, sortOrder]);
 
   async function loadInitialData() {
     const [cats, accts] = await Promise.all([
@@ -143,6 +156,12 @@ export default function Transactions() {
           startDate = new Date(2024, 0, 1);
           endDate = new Date(2024, 11, 31);
           break;
+        case 'custom':
+          if (customDateRange?.from) {
+            startDate = customDateRange.from;
+            endDate = customDateRange.to || customDateRange.from;
+          }
+          break;
       }
 
       const filters = {
@@ -152,6 +171,10 @@ export default function Transactions() {
         transactionType: typeFilter !== 'all' ? typeFilter as 'debit' | 'credit' : undefined,
         startDate,
         endDate,
+        minAmount: minAmount ? parseFloat(minAmount) : undefined,
+        maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
+        sortBy,
+        sortOrder,
       };
 
       const [txs, count] = await Promise.all([
@@ -301,23 +324,109 @@ export default function Transactions() {
                 </Select>
 
                 {/* Date Filter */}
-                <Select
-                  value={dateFilter}
-                  onValueChange={(v) => { setDateFilter(v); setCurrentPage(1); }}
-                >
-                  <SelectTrigger className="w-[180px] bg-muted border-0">
-                    <SelectValue placeholder="Date Range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Time</SelectItem>
-                    <SelectItem value="this_month">This Month</SelectItem>
-                    <SelectItem value="last_month">Last Month</SelectItem>
-                    <SelectItem value="last_3_months">Last 3 Months</SelectItem>
-                    <SelectItem value="this_year">This Year</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2024">2024</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={dateFilter}
+                    onValueChange={(v) => { setDateFilter(v); setCurrentPage(1); }}
+                  >
+                    <SelectTrigger className="w-[180px] bg-muted border-0">
+                      <SelectValue placeholder="Date Range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="this_month">This Month</SelectItem>
+                      <SelectItem value="last_month">Last Month</SelectItem>
+                      <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+                      <SelectItem value="this_year">This Year</SelectItem>
+                      <SelectItem value="2025">2025</SelectItem>
+                      <SelectItem value="2024">2024</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {dateFilter === 'custom' && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          id="date"
+                          className={cn(
+                            "w-[260px] justify-start text-left font-normal bg-muted border-0",
+                            !customDateRange && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {customDateRange?.from ? (
+                            customDateRange.to ? (
+                              <>
+                                {format(customDateRange.from, "LLL dd, y")} -{" "}
+                                {format(customDateRange.to, "LLL dd, y")}
+                              </>
+                            ) : (
+                              format(customDateRange.from, "LLL dd, y")
+                            )
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={customDateRange?.from}
+                          selected={customDateRange}
+                          onSelect={setCustomDateRange}
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+
+                {/* Amount Filter */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Min ₹"
+                    value={minAmount}
+                    onChange={(e) => { setMinAmount(e.target.value); setCurrentPage(1); }}
+                    className="w-[100px] bg-muted border-0"
+                  />
+                  <span className="text-muted-foreground">-</span>
+                  <Input
+                    type="number"
+                    placeholder="Max ₹"
+                    value={maxAmount}
+                    onChange={(e) => { setMaxAmount(e.target.value); setCurrentPage(1); }}
+                    className="w-[100px] bg-muted border-0"
+                  />
+                </div>
+
+                {/* Sort Controls */}
+                <div className="flex items-center gap-2">
+                  <Select value={sortBy} onValueChange={(v) => { setSortBy(v as 'date' | 'amount'); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-[140px] bg-muted border-0">
+                      <div className="flex items-center gap-2">
+                        <ArrowUpDown className="w-4 h-4" />
+                        <SelectValue placeholder="Sort By" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="amount">Amount</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => { setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); setCurrentPage(1); }}
+                    className="bg-muted hover:bg-muted/80"
+                  >
+                    {sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -333,89 +442,99 @@ export default function Transactions() {
                 </div>
               ) : transactions.length > 0 ? (
                 <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-border hover:bg-transparent">
-                        <TableHead className="text-muted-foreground font-medium">Name</TableHead>
-                        <TableHead className="text-muted-foreground font-medium">Transaction ID</TableHead>
-                        <TableHead className="text-muted-foreground font-medium">Card</TableHead>
-                        <TableHead className="text-muted-foreground font-medium">Date</TableHead>
-                        <TableHead className="text-right text-muted-foreground font-medium">Amount</TableHead>
-                        <TableHead className="w-[80px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {transactions.map((tx) => {
-                        const category = getCategoryById(tx.categoryId);
-                        const account = getAccountById(tx.accountId);
+                  <div className="overflow-x-auto no-scrollbar">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead className="text-muted-foreground font-medium">Name</TableHead>
+                          <TableHead className="text-muted-foreground font-medium">Transaction ID</TableHead>
+                          <TableHead className="text-muted-foreground font-medium">Card</TableHead>
+                          <TableHead className="text-muted-foreground font-medium">Date</TableHead>
+                          <TableHead className="text-muted-foreground font-medium">Method</TableHead>
+                          <TableHead className="text-right text-muted-foreground font-medium">Amount</TableHead>
+                          <TableHead className="w-[80px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transactions.map((tx) => {
+                          const category = getCategoryById(tx.categoryId);
+                          const account = getAccountById(tx.accountId);
 
-                        return (
-                          <TableRow key={tx.id} className="group border-border hover:bg-muted/30">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-medium shrink-0"
-                                  style={{
-                                    backgroundColor: `${category?.color || '#6B7280'}15`,
-                                    color: category?.color || '#6B7280'
-                                  }}
-                                >
-                                  {tx.merchantNormalized.charAt(0).toUpperCase()}
+                          return (
+                            <TableRow key={tx.id} className="group border-border hover:bg-muted/30">
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-medium shrink-0"
+                                    style={{
+                                      backgroundColor: `${category?.color || '#6B7280'}15`,
+                                      color: category?.color || '#6B7280'
+                                    }}
+                                  >
+                                    {(tx.merchantNormalized || tx.merchantRaw || '?').charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-medium truncate max-w-[180px]">{tx.merchantNormalized || tx.merchantRaw || 'Unknown'}</p>
+                                    {category && (
+                                      <p className="text-xs text-muted-foreground truncate">{category.name}</p>
+                                    )}
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-medium">{tx.merchantNormalized}</p>
-                                  {category && (
-                                    <p className="text-xs text-muted-foreground">{category.name}</p>
-                                  )}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground font-mono text-sm">
+                                #{tx.id.slice(0, 8).toUpperCase()}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                <div className="flex items-center gap-1.5">
+                                  <CreditCard className="w-4 h-4" />
+                                  ****{account?.name?.slice(-4) || '0000'}
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground font-mono text-sm">
-                              #{tx.id.slice(0, 8).toUpperCase()}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              <div className="flex items-center gap-1.5">
-                                <CreditCard className="w-4 h-4" />
-                                ****{account?.name?.slice(-4) || '0000'}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {formatDate(tx.date, 'dd MMM, h:mma')}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <span className={cn(
-                                "font-mono font-medium",
-                                tx.transactionType === 'debit' ? 'text-foreground' : 'text-success'
-                              )}>
-                                {tx.transactionType === 'debit' ? '-' : '+'}
-                                ₹{tx.amount.toFixed(2)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => setEditingTransaction(tx)}
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-danger hover:text-danger"
-                                  onClick={() => handleDelete(tx.id)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {formatDate(tx.date, 'dd MMM, h:mma')}
+                              </TableCell>
+                              <TableCell>
+                                {tx.paymentMethod === 'UPI' ? (
+                                  <span className="badge-method badge-upi">UPI</span>
+                                ) : (
+                                  <span className="badge-method badge-other">OTHER</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className={cn(
+                                  "font-mono font-medium",
+                                  tx.transactionType === 'debit' ? 'text-foreground' : 'text-success'
+                                )}>
+                                  {tx.transactionType === 'debit' ? '-' : '+'}
+                                  ₹{tx.amount.toFixed(2)}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => setEditingTransaction(tx)}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-danger hover:text-danger"
+                                    onClick={() => handleDelete(tx.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
 
                   {/* Pagination */}
                   {totalPages > 1 && (
@@ -495,10 +614,18 @@ export default function Transactions() {
                             color: category?.color || '#6B7280'
                           }}
                         >
-                          {tx.merchantNormalized.charAt(0).toUpperCase()}
+                          {(tx.merchantNormalized || tx.merchantRaw || '?').charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{tx.merchantNormalized}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm truncate max-w-[140px]">{tx.merchantNormalized || tx.merchantRaw || 'Unknown'}</p>
+                            {tx.paymentMethod === 'UPI' && (
+                              <span className="badge-method badge-upi shrink-0">UPI</span>
+                            )}
+                            {tx.paymentMethod !== 'UPI' && tx.paymentMethod && (
+                              <span className="badge-method badge-other shrink-0">OTH</span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {formatDate(tx.date, 'dd MMM')}
                           </p>

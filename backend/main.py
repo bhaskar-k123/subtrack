@@ -10,7 +10,9 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
-from routers import processing, export, health
+from routers import processing, export, health, sync
+import database
+import models
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -19,10 +21,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Background initialization to keep startup fast
+@app.on_event("startup")
+async def startup_event():
+    # Initialize DB Tables
+    models.Base.metadata.create_all(bind=database.engine)
+    print(" [Backend] SQLite Tables created.")
+    
+    import threading
+    from services.parsers import get_docling_converter
+    
+    def warm_up_services():
+        print(" [Background] Initializing AI models (Docling)...")
+        get_docling_converter()
+        print(" [Background] AI models ready.")
+        
+    threading.Thread(target=warm_up_services, daemon=True).start()
+
 # CORS for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8080", "http://localhost:8081"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,6 +51,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(processing.router, prefix="/api", tags=["processing"])
 app.include_router(export.router, prefix="/api", tags=["export"])
+app.include_router(sync.router, prefix="/api", tags=["sync"])
 
 # Serve React frontend static files
 # Adjust path relative to this file

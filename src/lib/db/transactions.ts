@@ -12,6 +12,8 @@ export interface TransactionFilters {
   searchQuery?: string;
   minAmount?: number;
   maxAmount?: number;
+  sortBy?: 'date' | 'amount';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export async function createTransaction(
@@ -22,7 +24,8 @@ export async function createTransaction(
     data.accountId,
     data.date,
     data.amount,
-    data.merchantRaw
+    data.merchantRaw,
+    data.refNumber
   );
 
   // Check for duplicate
@@ -46,7 +49,8 @@ export async function createTransaction(
 }
 
 export async function bulkCreateTransactions(
-  transactions: Omit<Transaction, 'id' | 'transactionHash' | 'createdAt' | 'updatedAt'>[]
+  transactions: Omit<Transaction, 'id' | 'transactionHash' | 'createdAt' | 'updatedAt'>[],
+  options: { allowDuplicates?: boolean } = {}
 ): Promise<{ added: string[]; duplicates: number }> {
   const now = new Date();
   const added: string[] = [];
@@ -54,17 +58,24 @@ export async function bulkCreateTransactions(
   const affectedAccounts = new Set<string>();
 
   for (const data of transactions) {
-    const hash = await generateTransactionHash(
+    let hash = await generateTransactionHash(
       data.accountId,
       data.date,
       data.amount,
-      data.merchantRaw
+      data.merchantRaw,
+      data.refNumber
     );
 
     const existing = await db.transactions.where('transactionHash').equals(hash).first();
     if (existing) {
-      duplicates++;
-      continue;
+      if (options.allowDuplicates) {
+        // Generates a unique suffix for the hash to bypass uniqueness constraint
+        // WE append a random ID ensuring it never collides
+        hash = `${hash}_dup_${generateId()}`;
+      } else {
+        duplicates++;
+        continue;
+      }
     }
 
     const transaction: Transaction = {
@@ -102,6 +113,11 @@ export async function deleteTransaction(id: string): Promise<void> {
   const tx = await db.transactions.get(id);
   if (tx) {
     await db.transactions.delete(id);
+    await db.deletedLog.add({
+      id: id,
+      type: 'transaction',
+      deletedAt: new Date()
+    });
     await updateAccountTransactionCount(tx.accountId);
   }
 }
@@ -111,6 +127,14 @@ export async function bulkDeleteTransactions(ids: string[]): Promise<void> {
   const affectedAccounts = new Set(transactions.map(t => t.accountId));
 
   await db.transactions.bulkDelete(ids);
+
+  const now = new Date();
+  const deletedLogs = ids.map(id => ({
+    id: id,
+    type: 'transaction' as const,
+    deletedAt: now
+  }));
+  await db.deletedLog.bulkAdd(deletedLogs);
 
   for (const accountId of affectedAccounts) {
     await updateAccountTransactionCount(accountId);
@@ -140,9 +164,13 @@ export async function getTransactions(
   limit = 50,
   offset = 0
 ): Promise<Transaction[]> {
-  let collection = db.transactions.orderBy('date').reverse();
+  let collection = db.transactions.toCollection();
 
-  const transactions = await collection.toArray();
+  // Basic filtering that can be done at the DB level if possible, 
+  // but for simplicity and since we are already doing in-memory filtering for some fields,
+  // we'll get all and filter/sort in memory. 
+  // Optimization: In a real app with 10k+ txs, we'd use Dexie indexes more heavily.
+  const transactions = await db.transactions.toArray();
 
   let filtered = transactions;
 
@@ -163,11 +191,11 @@ export async function getTransactions(
   }
 
   if (filters.startDate) {
-    filtered = filtered.filter(t => t.date >= filters.startDate!);
+    filtered = filtered.filter(t => new Date(t.date) >= filters.startDate!);
   }
 
   if (filters.endDate) {
-    filtered = filtered.filter(t => t.date <= filters.endDate!);
+    filtered = filtered.filter(t => new Date(t.date) <= filters.endDate!);
   }
 
   if (filters.minAmount !== undefined) {
@@ -181,12 +209,27 @@ export async function getTransactions(
   if (filters.searchQuery) {
     const query = filters.searchQuery.toLowerCase();
     filtered = filtered.filter(t =>
-      t.merchantNormalized.toLowerCase().includes(query) ||
-      t.merchantRaw.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query) ||
-      t.notes?.toLowerCase().includes(query)
+      (t.merchantNormalized || '').toLowerCase().includes(query) ||
+      (t.merchantRaw || '').toLowerCase().includes(query) ||
+      (t.description || '').toLowerCase().includes(query) ||
+      (t.notes || '').toLowerCase().includes(query)
     );
   }
+
+  // Sorting
+  const sortBy = filters.sortBy || 'date';
+  const sortOrder = filters.sortOrder || 'desc';
+
+  filtered.sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'date') {
+      comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+    } else if (sortBy === 'amount') {
+      comparison = a.amount - b.amount;
+    }
+
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
 
   return filtered.slice(offset, offset + limit);
 }
@@ -232,9 +275,10 @@ export async function checkDuplicate(
   accountId: string,
   date: Date,
   amount: number,
-  merchantRaw: string
+  merchantRaw: string,
+  refNumber?: string
 ): Promise<Transaction | null> {
-  const hash = await generateTransactionHash(accountId, date, amount, merchantRaw);
+  const hash = await generateTransactionHash(accountId, date, amount, merchantRaw, refNumber);
   const existing = await db.transactions.where('transactionHash').equals(hash).first();
   return existing || null;
 }
@@ -308,6 +352,14 @@ export async function deleteStatementTransactions(sourceFileName: string): Promi
   const ids = toDelete.map(t => t.id);
 
   await db.transactions.bulkDelete(ids);
+
+  const now = new Date();
+  const deletedLogs = ids.map(id => ({
+    id: id,
+    type: 'transaction' as const,
+    deletedAt: now
+  }));
+  await db.deletedLog.bulkAdd(deletedLogs);
 
   // Update transaction counts for affected accounts
   for (const accountId of affectedAccounts) {

@@ -5,8 +5,7 @@ import os
 from typing import Optional
 
 from services.parsers import (
-    DOCLING_AVAILABLE, 
-    DOCLING_CONVERTER, 
+    get_docling_converter,
     decrypt_pdf, 
     extract_text_simple, 
     parse_transactions_from_text
@@ -111,23 +110,26 @@ async def process_document(
                     if extracted_text and len(extracted_text.strip()) > 100:
                         processing_method = "pypdf_fallback"
                         transactions, validation = parse_transactions_from_text(extracted_text)
-                    elif DOCLING_AVAILABLE and DOCLING_CONVERTER:
-                        try:
-                            print(f"PDF has no extractable text, using Docling OCR...")
-                            result = DOCLING_CONVERTER.convert(file_to_process)
-                            extracted_text = result.document.export_to_markdown()
-                            processing_method = "docling"
-                            transactions, validation = parse_transactions_from_text(extracted_text)
-                        except Exception as de:
-                            print(f"Docling error: {de}")
                     else:
-                        processing_method = "failed"
+                        docling_converter = get_docling_converter()
+                        if docling_converter:
+                            try:
+                                print(f"PDF has no extractable text, using Docling OCR...")
+                                result = docling_converter.convert(file_to_process)
+                                extracted_text = result.document.export_to_markdown()
+                                processing_method = "docling"
+                                transactions, validation = parse_transactions_from_text(extracted_text)
+                            except Exception as de:
+                                print(f"Docling error: {de}")
+                        else:
+                            processing_method = "failed"
         
         elif ext in ['.png', '.jpg', '.jpeg']:
             # Images always need OCR via Docling
-            if DOCLING_AVAILABLE and DOCLING_CONVERTER:
+            docling_converter = get_docling_converter()
+            if docling_converter:
                 try:
-                    result = DOCLING_CONVERTER.convert(file_to_process)
+                    result = docling_converter.convert(file_to_process)
                     extracted_text = result.document.export_to_markdown()
                     processing_method = "docling"
                     transactions, validation = parse_transactions_from_text(extracted_text)

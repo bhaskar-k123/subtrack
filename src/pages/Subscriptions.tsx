@@ -291,8 +291,8 @@ export default function Subscriptions() {
                       <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary/30 to-primary/30 flex items-center justify-center">
                         <Repeat className="w-6 h-6 text-secondary" />
                       </div>
-                      <div>
-                        <h3 className="font-semibold">{sub.name}</h3>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold truncate max-w-[150px]">{sub.name}</h3>
                         <StatusBadge
                           variant={sub.status as 'active' | 'paused' | 'cancelled'}
                           className="mt-1"
@@ -372,8 +372,8 @@ export default function Subscriptions() {
                   <div className="w-10 h-10 rounded-xl bg-secondary/20 flex items-center justify-center">
                     <Repeat className="w-5 h-5 text-secondary" />
                   </div>
-                  <div>
-                    <p className="font-medium">{sub.name}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate max-w-[200px]">{sub.name}</p>
                     <p className="text-sm text-muted-foreground">
                       {formatCurrency(sub.averageAmount)}/{sub.billingFrequency}
                     </p>

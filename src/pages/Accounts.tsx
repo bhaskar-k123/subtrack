@@ -61,6 +61,7 @@ export default function Accounts() {
     identifier: '',
     currency: 'USD',
     notes: '',
+    pdfPassword: '',
   });
 
   useEffect(() => {
@@ -88,6 +89,7 @@ export default function Accounts() {
       identifier: '',
       currency: 'USD',
       notes: '',
+      pdfPassword: '',
     });
     setShowDialog(true);
   }
@@ -101,6 +103,7 @@ export default function Accounts() {
       identifier: account.identifier || '',
       currency: account.currency,
       notes: account.notes || '',
+      pdfPassword: account.pdfPassword || '',
     });
     setShowDialog(true);
   }
@@ -117,6 +120,7 @@ export default function Accounts() {
           identifier: formData.identifier || null,
           currency: formData.currency,
           notes: formData.notes || null,
+          pdfPassword: formData.pdfPassword || null,
         });
         toast.success('Account updated');
       } else {
@@ -129,6 +133,7 @@ export default function Accounts() {
           status: 'active',
           balance: null,
           notes: formData.notes || null,
+          pdfPassword: formData.pdfPassword || null,
         });
         toast.success('Account created');
       }
@@ -334,6 +339,17 @@ export default function Accounts() {
                 onChange={(e) => setFormData(prev => ({ ...prev, identifier: e.target.value.slice(0, 4) }))}
                 placeholder="1234"
                 maxLength={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pdfPassword">Default PDF Password (Optional)</Label>
+              <Input
+                id="pdfPassword"
+                type="password"
+                value={formData.pdfPassword}
+                onChange={(e) => setFormData(prev => ({ ...prev, pdfPassword: e.target.value }))}
+                placeholder="Auto-unlock statements"
               />
             </div>
 

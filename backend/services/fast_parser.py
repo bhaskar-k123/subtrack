@@ -124,6 +124,10 @@ def _infer_from_deltas(spine, all_words):
     # Sort spine strictly
     spine.sort(key=lambda t: (t['page'], t['top']))
     
+    # Track column positions to learn layout
+    col_stats = {"debit": [], "credit": []}
+
+    # 1. Standard Difference-based Inference (Row 2 to N)
     for i in range(1, len(spine)):
         prev = spine[i-1]
         curr = spine[i]
@@ -156,11 +160,132 @@ def _infer_from_deltas(spine, all_words):
                 "amount": amount,
                 "transactionType": tx_type,
                 "merchantRaw": description,
+                "refNumber": _find_ref_number(curr, all_words),
                 "closingBalance": curr['numeric_value'],
+                "paymentMethod": "UPI" if "upi" in description.lower() else "Other",
                 "confidenceScore": 100 # Math verified
             })
             
+            # FEEDBACK LOOP: Learn where the Amount was
+            # We know the amount is `amount`. Find a token on this row with that value.
+            amt_token = _find_token_with_value(curr, amount, all_words)
+            if amt_token:
+                col_stats[tx_type].append(amt_token['x0'])
+
+    # 2. Backfill First Transaction (Row 1)
+    # The loop above starts at index 1. Index 0 was used as "Previous Balance".
+    # But if Index 0 has a Date, it is likely a Transaction itself, not an Opening Balance.
+    if spine:
+        first = spine[0]
+        first_date = _find_nearest_date_token(first, all_words)
+        
+        if first_date:
+            # It's a transaction! But we can't use delta method.
+            # We must find the amount directly on the line.
+            
+            # Calculate column centroids
+            avg_dr_x = sum(col_stats['debit']) / len(col_stats['debit']) if col_stats['debit'] else None
+            avg_cr_x = sum(col_stats['credit']) / len(col_stats['credit']) if col_stats['credit'] else None
+            
+            # Find candidate numbers on this row
+            candidates = _get_row_numerics(first, all_words)
+            # Remove the balance itself (matches first['numeric_value'])
+            candidates = [c for c in candidates if abs(c['value'] - first['numeric_value']) > 0.01]
+            
+            # Also remove ref numbers (huge integers) if any slipped through? 
+            # (numerics are already filtered by _filter_numeric_tokens for < 10Cr, but ensure.)
+            
+            best_cand = None
+            best_type = "debit" # Default
+            
+            if len(candidates) == 1:
+                # Single candidate -> Easy
+                best_cand = candidates[0]['value']
+                # Infer type
+                cx = candidates[0]['token']['x0']
+                if avg_dr_x and avg_cr_x:
+                    if abs(cx - avg_dr_x) < abs(cx - avg_cr_x): best_type = "debit"
+                    else: best_type = "credit"
+                elif avg_dr_x:
+                    if abs(cx - avg_dr_x) < 50: best_type = "debit"
+                    else: best_type = "credit"
+                elif avg_cr_x:
+                    if abs(cx - avg_cr_x) < 50: best_type = "credit"
+                    else: best_type = "debit"
+                    
+            elif len(candidates) > 1:
+                # Multiple candidates? Use centroids to pick best.
+                # Find candidate closest to EITHER avg_dr_x or avg_cr_x
+                best_dist = 9999
+                
+                for c in candidates:
+                    cx = c['token']['x0']
+                    
+                    # Check Debit Dist
+                    if avg_dr_x:
+                        d = abs(cx - avg_dr_x)
+                        if d < best_dist:
+                            best_dist = d
+                            best_cand = c['value']
+                            best_type = "debit"
+                            
+                    # Check Credit Dist
+                    if avg_cr_x:
+                        d = abs(cx - avg_cr_x)
+                        if d < best_dist:
+                            best_dist = d
+                            best_cand = c['value']
+                            best_type = "credit"
+            
+            if best_cand:
+                print(f"DEBUG: Recovered First Transaction: {first_date} {best_cand} ({best_type})")
+                transactions.insert(0, {
+                    "date": first_date,
+                    "amount": best_cand,
+                    "transactionType": best_type,
+                    "merchantRaw": _find_row_text(first, all_words),
+                    "refNumber": _find_ref_number(first, all_words),
+                    "closingBalance": first['numeric_value'],
+                    "paymentMethod": "UPI" if "upi" in _find_row_text(first, all_words).lower() else "Other",
+                    "confidenceScore": 80 # Heuristic
+                })
+
     return transactions
+
+def _find_token_with_value(anchor_row_token, target_value, all_words):
+    # Find token on same row with numeric value approx equal to target_value
+    page_words = [w for w in all_words if w['page'] == anchor_row_token['page']]
+    anchor_y = (anchor_row_token['top'] + anchor_row_token['bottom']) / 2
+    
+    for w in page_words:
+        w_y = (w['top'] + w['bottom']) / 2
+        if abs(w_y - anchor_y) < 10:
+            # Check text
+            txt = w['text'].replace(',', '').strip()
+            if txt.endswith('Cr') or txt.endswith('Dr'): txt = txt[:-2]
+            try:
+                val = float(txt)
+                if abs(val - target_value) < 0.01:
+                    return w
+            except: pass
+    return None
+
+def _get_row_numerics(anchor_row_token, all_words):
+    # Return list of {token, value} for all numbers on the row
+    numerics = []
+    page_words = [w for w in all_words if w['page'] == anchor_row_token['page']]
+    anchor_y = (anchor_row_token['top'] + anchor_row_token['bottom']) / 2
+    
+    for w in page_words:
+        w_y = (w['top'] + w['bottom']) / 2
+        if abs(w_y - anchor_y) < 10:
+             txt = w['text'].replace(',', '').strip()
+             if txt.endswith('Cr') or txt.endswith('Dr'): txt = txt[:-2]
+             try:
+                 val = float(txt)
+                 numerics.append({'token': w, 'value': val})
+             except: pass
+    return numerics
 
 def _find_nearest_date_token(anchor_token, all_words):
     # Search words on same page, same Y-range, left of anchor
@@ -261,3 +386,19 @@ def _validate_mathematically(transactions):
     # We should return stats on skipped deltas.
     
     return True, {"method": "fast_balance_spine", "count": len(transactions)}
+
+def _find_ref_number(anchor_row_token, all_words):
+    # Find a standalone long integer number on the row
+    # Ref numbers are usually 10+ digits, no decimal
+    page_words = [w for w in all_words if w['page'] == anchor_row_token['page']]
+    anchor_y = (anchor_row_token['top'] + anchor_row_token['bottom']) / 2
+    
+    for w in page_words:
+        w_y = (w['top'] + w['bottom']) / 2
+        if abs(w_y - anchor_y) < 10:
+            txt = w['text'].replace(',', '').strip()
+            # Must be purely numeric, no decimals
+            if txt.isdigit() and len(txt) > 6:
+                print(f"DEBUG: Found Ref Number: {txt} on row {anchor_y}")
+                return txt
+    return None

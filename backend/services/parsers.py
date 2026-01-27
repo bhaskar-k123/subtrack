@@ -17,75 +17,86 @@ except ImportError:
 DOCLING_AVAILABLE = False
 DOCLING_CONVERTER = None
 
-try:
-    import multiprocessing
-    # Set thread count via environment variable for underlying libraries
-    cpu_count = multiprocessing.cpu_count()
-    os.environ.setdefault('OMP_NUM_THREADS', str(cpu_count))
-    os.environ.setdefault('DOCLING_NUM_THREADS', str(cpu_count))
+def get_docling_converter():
+    """Lazy loader for Docling converter"""
+    global DOCLING_CONVERTER, DOCLING_AVAILABLE
     
-    from docling.document_converter import DocumentConverter, PdfFormatOption
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import (
-        PdfPipelineOptions,
-        AcceleratorOptions,
-        AcceleratorDevice,
-        TableStructureOptions,
-        TableFormerMode,
-    )
-    from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-    
-    # Accelerator options for multi-threaded CPU processing
-    accelerator_options = AcceleratorOptions(
-        num_threads=cpu_count,
-        device=AcceleratorDevice.CPU,
-    )
-    
-    # FAST table structure (good for bank statement tables, much faster than ACCURATE)
-    table_options = TableStructureOptions(
-        mode=TableFormerMode.FAST,
-        do_cell_matching=False,  # Faster without cell matching
-    )
-    
-    # Optimized pipeline options for CPU-only, speed-focused processing
-    pipeline_options = PdfPipelineOptions(
-        accelerator_options=accelerator_options,
-        # Disable image generation for speed (we just need text)
-        generate_page_images=False,
-        generate_picture_images=False,
-        generate_table_images=False,
-        # Lower scale for faster processing
-        images_scale=1.0,
-        # Disable enrichment features we don't need for bank statements
-        do_picture_classification=False,
-        do_picture_description=False,
-        do_code_enrichment=False,
-        do_formula_enrichment=False,
-        # Enable FAST table structure for transaction tables
-        do_table_structure=True,
-        table_structure_options=table_options,
-        # Keep OCR enabled for scanned PDFs
-        do_ocr=True,
-    )
+    if DOCLING_CONVERTER is not None:
+        return DOCLING_CONVERTER
+        
+    try:
+        import multiprocessing
+        # Set thread count via environment variable for underlying libraries
+        cpu_count = multiprocessing.cpu_count()
+        os.environ.setdefault('OMP_NUM_THREADS', str(cpu_count))
+        os.environ.setdefault('DOCLING_NUM_THREADS', str(cpu_count))
+        
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import (
+            PdfPipelineOptions,
+            AcceleratorOptions,
+            AcceleratorDevice,
+            TableStructureOptions,
+            TableFormerMode,
+        )
+        from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+        
+        # Accelerator options for multi-threaded CPU processing
+        accelerator_options = AcceleratorOptions(
+            num_threads=cpu_count,
+            device=AcceleratorDevice.CPU,
+        )
+        
+        # FAST table structure (good for bank statement tables, much faster than ACCURATE)
+        table_options = TableStructureOptions(
+            mode=TableFormerMode.FAST,
+            do_cell_matching=False,  # Faster without cell matching
+        )
+        
+        # Optimized pipeline options for CPU-only, speed-focused processing
+        pipeline_options = PdfPipelineOptions(
+            accelerator_options=accelerator_options,
+            # Disable image generation for speed (we just need text)
+            generate_page_images=False,
+            generate_picture_images=False,
+            generate_table_images=False,
+            # Lower scale for faster processing
+            images_scale=1.0,
+            # Disable enrichment features we don't need for bank statements
+            do_picture_classification=False,
+            do_picture_description=False,
+            do_code_enrichment=False,
+            do_formula_enrichment=False,
+            # Enable FAST table structure for transaction tables
+            do_table_structure=True,
+            table_structure_options=table_options,
+            # Keep OCR enabled for scanned PDFs
+            do_ocr=True,
+        )
 
-    DOCLING_CONVERTER = DocumentConverter(
-        allowed_formats=[InputFormat.PDF, InputFormat.IMAGE, InputFormat.DOCX],
-        format_options={
-            InputFormat.PDF: PdfFormatOption(
-                pipeline_options=pipeline_options,
-                backend=PyPdfiumDocumentBackend,
-            )
-        },
-    )
-    
-    DOCLING_AVAILABLE = True
-    print(f"✅ Docling configured for speed (using {cpu_count} CPU cores, pypdfium2 backend)")
-except ImportError as e:
-    print(f"⚠️ Docling not available: {e}")
-    print("   Install with: pip install docling")
-except Exception as e:
-    print(f"⚠️ Docling configuration error: {e}")
-    print("   Will use fallback text extraction")
+        DOCLING_CONVERTER = DocumentConverter(
+            allowed_formats=[InputFormat.PDF, InputFormat.IMAGE, InputFormat.DOCX],
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=pipeline_options,
+                    backend=PyPdfiumDocumentBackend,
+                )
+            },
+        )
+        
+        DOCLING_AVAILABLE = True
+        print(f"✅ Docling configured for speed (using {cpu_count} CPU cores, pypdfium2 backend)")
+        return DOCLING_CONVERTER
+        
+    except ImportError as e:
+        print(f"⚠️ Docling not available: {e}")
+        print("   Install with: pip install docling")
+        return None
+    except Exception as e:
+        print(f"⚠️ Docling configuration error: {e}")
+        print("   Will use fallback text extraction")
+        return None
 
 
 def extract_text_simple(file_path: str) -> str:
@@ -259,6 +270,7 @@ def parse_transactions_from_text(text: str) -> Tuple[List[Dict], Dict]:
                 "amount": amount_val,
                 "raw_amounts": [float(a.replace(',', '')) for a in amounts],
                 "transactionType": "unknown", # To be determined
+                "paymentMethod": "UPI" if "upi" in narration.lower() else "Other",
                 "closingBalance": closing_balance,
                 "confidenceScore": 85,
                 "description": None
