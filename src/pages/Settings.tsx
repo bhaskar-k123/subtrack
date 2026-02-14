@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { PageContainer, PageHeader } from '@/components/layout';
+import { PageContainer } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -27,10 +28,13 @@ import {
   Palette,
   Database,
   Download,
-  Upload,
+  Upload as UploadIcon,
   Trash2,
   Shield,
   Info,
+  List,
+  Check,
+  ChevronRight,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { exportData, importData, clearAllData, getDatabaseStats } from '@/lib/db/settings';
@@ -38,6 +42,7 @@ import { getAllCategories } from '@/lib/db/categories';
 import type { Category, BackupData } from '@/types/database';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils/formatting';
+import { cn } from '@/lib/utils';
 
 export default function Settings() {
   const { theme, setTheme, currency, setCurrency, dateFormat, setDateFormat } = useAppStore();
@@ -125,7 +130,6 @@ export default function Settings() {
       }
 
       const result = await importData(data);
-
       if (result.success) {
         toast.success(result.message);
         loadData();
@@ -152,263 +156,327 @@ export default function Settings() {
 
   return (
     <PageContainer>
-      <PageHeader
-        title="Settings"
-        description="Configure your SubTrack preferences"
-      />
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <p className="text-muted-foreground mt-1">Manage your workspace preferences</p>
+        </div>
+      </div>
 
-      <div className="space-y-6 max-w-2xl">
-        {/* Appearance */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Palette className="w-5 h-5 text-primary" />
-              <CardTitle>Appearance</CardTitle>
-            </div>
-            <CardDescription>Customize how SubTrack looks</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Theme</Label>
-                <p className="text-sm text-muted-foreground">Select your preferred theme</p>
-              </div>
-              <Select value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="system">System</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Split View Container */}
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-12rem)] min-h-[600px] border rounded-xl overflow-hidden bg-background shadow-sm ring-1 ring-border/50">
+        <Tabs defaultValue="general" orientation="vertical" className="w-full flex flex-col lg:flex-row h-full">
 
-        {/* Preferences */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <SettingsIcon className="w-5 h-5 text-primary" />
-              <CardTitle>Preferences</CardTitle>
+          {/* Sidebar */}
+          <aside className="lg:w-72 border-r bg-muted/10 h-full flex flex-col">
+            <div className="p-4 pb-2">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">Configuration</h2>
             </div>
-            <CardDescription>General application settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Currency</Label>
-                <p className="text-sm text-muted-foreground">Default currency for amounts</p>
-              </div>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INR">INR (₹)</SelectItem>
-                  <SelectItem value="USD">USD ($)</SelectItem>
-                  <SelectItem value="EUR">EUR (€)</SelectItem>
-                  <SelectItem value="GBP">GBP (£)</SelectItem>
-                  <SelectItem value="CAD">CAD ($)</SelectItem>
-                  <SelectItem value="AUD">AUD ($)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Date Format</Label>
-                <p className="text-sm text-muted-foreground">How dates are displayed</p>
-              </div>
-              <Select value={dateFormat} onValueChange={setDateFormat}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                  <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                  <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Categories */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Palette className="w-5 h-5 text-primary" />
-              <CardTitle>Categories</CardTitle>
-            </div>
-            <CardDescription>Transaction categories ({categories.length} total)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {categories.map(cat => (
-                <div
-                  key={cat.id}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm"
-                  style={{
-                    backgroundColor: `${cat.color}15`,
-                    color: cat.color,
-                  }}
-                >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  {cat.name}
+            <TabsList className="flex flex-row lg:flex-col justify-start items-stretch h-auto bg-transparent p-2 gap-1 w-full relative">
+              <TabsTrigger
+                value="general"
+                className="group flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary hover:bg-muted/50 transition-all justify-start"
+              >
+                <div className="flex items-center gap-3">
+                  <SettingsIcon className="w-4 h-4" />
+                  General
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Data Management */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Database className="w-5 h-5 text-primary" />
-              <CardTitle>Data Management</CardTitle>
-            </div>
-            <CardDescription>
-              {dbStats.transactions} transactions • {dbStats.accounts} accounts • {dbStats.estimatedSize}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Export Backup</Label>
-                <p className="text-sm text-muted-foreground">Download all your data as JSON</p>
-              </div>
-              <Button variant="outline" onClick={handleExport} isLoading={isExporting}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Import Backup</Label>
-                <p className="text-sm text-muted-foreground">Restore from a backup file</p>
-              </div>
-              <div>
-                <input
-                  type="file"
-                  id="import-file"
-                  className="hidden"
-                  accept=".json"
-                  onChange={handleImport}
-                />
-                <Button variant="outline" asChild disabled={isImporting}>
-                  <label htmlFor="import-file" className="cursor-pointer">
-                    <Upload className="w-4 h-4 mr-2" />
-                    {isImporting ? 'Importing...' : 'Import'}
-                  </label>
-                </Button>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-danger">Delete All Data</Label>
-                <p className="text-sm text-muted-foreground">Permanently remove all data</p>
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete All
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete all your
-                      transactions, accounts, subscriptions, and settings.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleClearData}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete Everything
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Privacy Info */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-success" />
-              <CardTitle>Privacy</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-success mt-1.5" />
-                <div>
-                  <p className="font-medium">100% Local Storage</p>
-                  <p className="text-muted-foreground">All data is stored in your browser's IndexedDB</p>
+                <ChevronRight className="w-4 h-4 opacity-0 group-data-[state=active]:opacity-50" />
+              </TabsTrigger>
+              <TabsTrigger
+                value="categories"
+                className="group flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary hover:bg-muted/50 transition-all justify-start"
+              >
+                <div className="flex items-center gap-3">
+                  <List className="w-4 h-4" />
+                  Categories
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-success mt-1.5" />
-                <div>
-                  <p className="font-medium">No Cloud Sync</p>
-                  <p className="text-muted-foreground">Your financial data never leaves your device</p>
+                <ChevronRight className="w-4 h-4 opacity-0 group-data-[state=active]:opacity-50" />
+              </TabsTrigger>
+              <TabsTrigger
+                value="data"
+                className="group flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary hover:bg-muted/50 transition-all justify-start"
+              >
+                <div className="flex items-center gap-3">
+                  <Database className="w-4 h-4" />
+                  Data
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-success mt-1.5" />
-                <div>
-                  <p className="font-medium">No Analytics</p>
-                  <p className="text-muted-foreground">Zero tracking, telemetry, or data collection</p>
+                <ChevronRight className="w-4 h-4 opacity-0 group-data-[state=active]:opacity-50" />
+              </TabsTrigger>
+              <TabsTrigger
+                value="about"
+                className="group flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium rounded-md data-[state=active]:bg-primary/10 data-[state=active]:text-primary hover:bg-muted/50 transition-all justify-start"
+              >
+                <div className="flex items-center gap-3">
+                  <Info className="w-4 h-4" />
+                  About
                 </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <ChevronRight className="w-4 h-4 opacity-0 group-data-[state=active]:opacity-50" />
+              </TabsTrigger>
+            </TabsList>
 
-        {/* About */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Info className="w-5 h-5 text-primary" />
-              <CardTitle>About</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Version</span>
-                <span>1.0.0</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Built with</span>
-                <span>React + TypeScript + Dexie.js</span>
+            <div className="mt-auto p-4 border-t bg-muted/5">
+              <div className="flex items-center gap-3 px-2 py-1">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="text-xs text-muted-foreground font-medium">System Operational</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </aside>
+
+          {/* Content Area */}
+          <main className="flex-1 h-full overflow-y-auto bg-card/50">
+            <div className="max-w-4xl mx-auto p-8">
+
+              {/* General Tab */}
+              <TabsContent value="general" className="space-y-8 m-0 animate-in fade-in-50 slide-in-from-left-2 duration-300">
+                <div className="space-y-1 pb-4 border-b">
+                  <h3 className="text-2xl font-semibold tracking-tight">General Settings</h3>
+                  <p className="text-muted-foreground">Manage appearance and preferences.</p>
+                </div>
+
+                <section className="space-y-6">
+                  <div className="grid gap-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                      <div className="space-y-1">
+                        <Label className="text-base">Theme</Label>
+                        <p className="text-sm text-muted-foreground max-w-sm">Select the visual appearance of the application.</p>
+                      </div>
+                      <Select value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dark">
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-900 border" /> Dark</div>
+                          </SelectItem>
+                          <SelectItem value="light">
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-white border" /> Light</div>
+                          </SelectItem>
+                          <SelectItem value="system">
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-400" /> System</div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                      <div className="space-y-1">
+                        <Label className="text-base">Currency</Label>
+                        <p className="text-sm text-muted-foreground">The primary currency for financial calculations.</p>
+                      </div>
+                      <Select value={currency} onValueChange={setCurrency}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INR">INR (₹)</SelectItem>
+                          <SelectItem value="USD">USD ($)</SelectItem>
+                          <SelectItem value="EUR">EUR (€)</SelectItem>
+                          <SelectItem value="GBP">GBP (£)</SelectItem>
+                          <SelectItem value="CAD">CAD ($)</SelectItem>
+                          <SelectItem value="AUD">AUD ($)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
+                      <div className="space-y-1">
+                        <Label className="text-base">Date Format</Label>
+                        <p className="text-sm text-muted-foreground">How dates appear across the application.</p>
+                      </div>
+                      <Select value={dateFormat} onValueChange={setDateFormat}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                          <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                          <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </section>
+              </TabsContent>
+
+              {/* Categories Tab */}
+              <TabsContent value="categories" className="space-y-8 m-0 animate-in fade-in-50 slide-in-from-left-2 duration-300">
+                <div className="space-y-1 pb-4 border-b">
+                  <h3 className="text-2xl font-semibold tracking-tight">Categories</h3>
+                  <p className="text-muted-foreground">Manage available transaction categories.</p>
+                </div>
+
+                <Card className="border-none shadow-none bg-transparent">
+                  <CardContent className="p-0">
+                    <div className="flex flex-wrap gap-3">
+                      {categories.map(cat => (
+                        <div
+                          key={cat.id}
+                          className="group flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card hover:border-primary/50 transition-all cursor-default"
+                        >
+                          <div
+                            className="w-3 h-3 rounded-full ring-2 ring-offset-2 ring-offset-background"
+                            style={{ backgroundColor: cat.color, '--tw-ring-color': cat.color } as React.CSSProperties}
+                          />
+                          <span className="font-medium">{cat.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Data Tab */}
+              <TabsContent value="data" className="space-y-8 m-0 animate-in fade-in-50 slide-in-from-left-2 duration-300">
+                <div className="space-y-1 pb-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-semibold tracking-tight">Data Management</h3>
+                      <p className="text-muted-foreground">Backup, restore, or reset your local database.</p>
+                    </div>
+                    <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                      Usage: {dbStats.estimatedSize}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-6">
+                  {/* Backup Section */}
+                  <div className="rounded-lg border p-6 bg-card space-y-6">
+                    <div className="flex items-center gap-3 text-primary">
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Download className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-semibold text-lg">Backup & Restore</h4>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Download a JSON file containing all your transactions, subscriptions, and settings.
+                        </p>
+                        <Button variant="outline" onClick={handleExport} disabled={isExporting} className="w-full justify-start">
+                          <Download className="w-4 h-4 mr-2" />
+                          {isExporting ? 'Exporting...' : 'Export Data'}
+                        </Button>
+                      </div>
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Restore your data from a previously created backup file.
+                        </p>
+                        <div>
+                          <input
+                            type="file"
+                            id="import-file"
+                            className="hidden"
+                            accept=".json"
+                            onChange={handleImport}
+                          />
+                          <Button variant="outline" asChild disabled={isImporting} className="w-full justify-start">
+                            <label htmlFor="import-file" className="cursor-pointer font-medium">
+                              <UploadIcon className="w-4 h-4 mr-2" />
+                              {isImporting ? 'Importing...' : 'Import Data'}
+                            </label>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Danger Zone */}
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6 space-y-4">
+                    <div className="flex items-center gap-3 text-destructive">
+                      <div className="p-2 rounded-lg bg-destructive/10">
+                        <Trash2 className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-semibold text-lg">Danger Zone</h4>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground max-w-xl">
+                        Permanently remove all data. This action removes the local IndexedDB database and cannot be undone.
+                      </p>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive">Delete All</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete all your
+                              transactions, accounts, subscriptions, and settings.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleClearData}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete Everything
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* About Tab */}
+              <TabsContent value="about" className="space-y-8 m-0 animate-in fade-in-50 slide-in-from-left-2 duration-300">
+                <div className="space-y-1 pb-4 border-b">
+                  <h3 className="text-2xl font-semibold tracking-tight">About</h3>
+                  <p className="text-muted-foreground">Privacy and application information.</p>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="p-6 rounded-xl bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Shield className="w-6 h-6 text-green-500" />
+                      <h4 className="font-semibold text-lg">Privacy First</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-500 mt-0.5" />
+                        100% Local Storage via IndexedDB
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-500 mt-0.5" />
+                        No data sent to cloud servers
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-500 mt-0.5" />
+                        Zero analytics or tracking
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="p-6 rounded-xl border bg-card">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Info className="w-6 h-6 text-primary" />
+                      <h4 className="font-semibold text-lg">SubTrack</h4>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between text-sm py-2 border-b">
+                        <span className="text-muted-foreground">Version</span>
+                        <span className="font-mono">1.0.0</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-2 border-b">
+                        <span className="text-muted-foreground">Build</span>
+                        <span className="font-mono">Production</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground pt-2">
+                        Built with modern web technologies for performance and reliability.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+            </div>
+          </main>
+        </Tabs>
       </div>
     </PageContainer>
   );
