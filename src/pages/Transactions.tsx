@@ -79,32 +79,7 @@ export default function Transactions() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   // CSV Export
-  function exportToCSV() {
-    const headers = ['Date', 'Merchant', 'Amount', 'Type', 'Category', 'Account', 'Notes'];
-    const rows = transactions.map(tx => {
-      const category = categories.find(c => c.id === tx.categoryId);
-      const account = accounts.find(a => a.id === tx.accountId);
-      return [
-        formatDate(tx.date),
-        tx.merchantNormalized || tx.merchantRaw,
-        tx.amount.toFixed(2),
-        tx.transactionType,
-        category?.name || '',
-        account?.name || '',
-        tx.notes || '',
-      ].map(v => `"${v}"`).join(',');
-    });
 
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transactions_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Transactions exported to CSV');
-  }
 
   useEffect(() => {
     loadInitialData();
@@ -193,8 +168,16 @@ export default function Transactions() {
 
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
-  const getCategoryById = (id: string | null) => categories.find(c => c.id === id);
-  const getAccountById = (id: string) => accounts.find(a => a.id === id);
+  const categoryMap = useMemo(() => {
+    return new Map(categories.map(c => [c.id, c]));
+  }, [categories]);
+
+  const accountMap = useMemo(() => {
+    return new Map(accounts.map(a => [a.id, a]));
+  }, [accounts]);
+
+  const getCategoryById = (id: string | null) => id ? categoryMap.get(id) : undefined;
+  const getAccountById = (id: string) => accountMap.get(id);
 
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this transaction?')) return;
