@@ -8,6 +8,94 @@
 
 @layer base {
   :root {
+    /* Core Background Colors - Light Mode Defaults */
+    --background: 220 14% 97%;
+    --background-secondary: 220 13% 95%;
+    --foreground: 220 13% 10%;
+
+    /* Card & Surface Colors */
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 10%;
+    --card-elevated: 0 0% 100%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 10%;
+
+    /* Primary - Yellow/Gold Accent */
+    --primary: 51 100% 50%;
+    --primary-foreground: 220 13% 10%;
+    --primary-glow: 51 100% 60%;
+
+    /* Secondary - Purple */
+    --secondary: 265 70% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted */
+    --muted: 220 14% 93%;
+    --muted-foreground: 220 10% 40%;
+
+    /* Accent */
+    --accent: 51 100% 50%;
+    --accent-foreground: 220 13% 10%;
+
+    /* Financial Colors */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI Elements */
+    --border: 220 13% 85%;
+    --input: 220 13% 85%;
+    --ring: 51 100% 50%;
+    --radius: 1rem;
+
+    /* Chart Colors */
+    --chart-1: 51 100% 50%;
+    --chart-2: 0 84% 60%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 265 70% 60%;
+    --chart-5: 199 89% 48%;
+
+    /* Category Colors */
+    --category-subscriptions: 265 70% 60%;
+    --category-utilities: 217 91% 60%;
+    --category-food: 0 84% 60%;
+    --category-transport: 38 92% 50%;
+    --category-shopping: 330 81% 60%;
+    --category-healthcare: 142 71% 45%;
+    --category-entertainment: 51 100% 50%;
+    --category-housing: 172 66% 50%;
+    --category-travel: 199 89% 48%;
+    --category-other: 220 10% 45%;
+
+    /* Sidebar - Light */
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 220 10% 40%;
+    --sidebar-primary: 51 100% 50%;
+    --sidebar-primary-foreground: 220 13% 10%;
+    --sidebar-accent: 220 14% 93%;
+    --sidebar-accent-foreground: 220 13% 10%;
+    --sidebar-border: 220 13% 85%;
+    --sidebar-ring: 51 100% 50%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(51 100% 50%), hsl(38 92% 50%));
+    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(172 66% 50%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(220 14% 96%));
+
+    /* Credit Card Gradients - Exact from reference */
+    --gradient-card-purple: linear-gradient(135deg, #7C3AED, #4F46E5);
+    --gradient-card-green: linear-gradient(135deg, #059669, #10B981);
+    --gradient-card-pink: linear-gradient(135deg, #DB2777, #EC4899);
+  }
+
+  .dark {
     /* Core Background Colors - Very Dark */
     --background: 220 13% 8%;
     --background-secondary: 220 10% 11%;
@@ -188,8 +276,13 @@
 
   /* Card Styles - Premium Dark with subtle glow */
   .card-base {
-    @apply bg-card border border-border rounded-2xl;
+    @apply bg-card border border-border rounded-2xl transition-all duration-300;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .card-base:hover {
+    @apply -translate-y-1 shadow-lg;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
   }
 
   .card-elevated {
@@ -227,18 +320,19 @@
   }
 
   .metric-card:hover {
+    @apply -translate-y-1;
     border-color: hsl(var(--primary) / 0.3);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px hsl(var(--primary) / 0.1);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 0 0 1px hsl(var(--primary) / 0.1);
   }
 
   /* Balance Card - Hero style */
   .balance-card {
-    @apply bg-card border border-border rounded-2xl p-8;
+    @apply bg-card border border-border rounded-2xl p-8 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
   }
 
   /* Transaction Row */
   .transaction-row {
-    @apply flex items-center gap-4 px-4 py-4 hover:bg-muted/30 rounded-xl transition-all cursor-pointer;
+    @apply flex items-center gap-4 px-4 py-4 hover:bg-muted/50 rounded-xl transition-all duration-200 cursor-pointer hover:scale-[1.01];
   }
 
   /* Sidebar */
@@ -283,7 +377,7 @@
 
   /* Yellow accent button - Primary action */
   .btn-primary {
-    @apply bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl transition-all;
+    @apply bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl transition-all active:scale-95 hover:-translate-y-0.5;
     box-shadow: 0 4px 12px hsl(var(--primary) / 0.3);
   }
 
