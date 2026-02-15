@@ -37,6 +37,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
+import { ModeToggle } from '@/components/ui/mode-toggle';
 import { exportData, importData, clearAllData, getDatabaseStats } from '@/lib/db/settings';
 import { getAllCategories } from '@/lib/db/categories';
 import type { Category, BackupData } from '@/types/database';
@@ -45,7 +46,7 @@ import { formatDate } from '@/lib/utils/formatting';
 import { cn } from '@/lib/utils';
 
 export default function Settings() {
-  const { theme, setTheme, currency, setCurrency, dateFormat, setDateFormat } = useAppStore();
+  const { currency, setCurrency, dateFormat, setDateFormat } = useAppStore();
   const [categories, setCategories] = useState<Category[]>([]);
   const [dbStats, setDbStats] = useState({
     accounts: 0,
@@ -241,22 +242,7 @@ export default function Settings() {
                         <Label className="text-base">Theme</Label>
                         <p className="text-sm text-muted-foreground max-w-sm">Select the visual appearance of the application.</p>
                       </div>
-                      <Select value={theme} onValueChange={(v) => setTheme(v as typeof theme)}>
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dark">
-                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-900 border" /> Dark</div>
-                          </SelectItem>
-                          <SelectItem value="light">
-                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-white border" /> Light</div>
-                          </SelectItem>
-                          <SelectItem value="system">
-                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-400" /> System</div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <ModeToggle />
                     </div>
 
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
