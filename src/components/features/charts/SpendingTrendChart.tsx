@@ -73,8 +73,8 @@ export function SpendingTrendChart({ data }: SpendingTrendChartProps) {
               <Cell
                 key={`cell-${index}`}
                 fill={entry.amount === maxAmount
-                  ? 'hsl(51 100% 50%)'
-                  : 'hsl(51 100% 50% / 0.4)'
+                  ? 'hsl(var(--primary))'
+                  : 'hsl(var(--primary) / 0.4)'
                 }
               />
             ))}

@@ -12,8 +12,7 @@ interface CategoryDonutChartProps {
   data: { name: string; value: number; color: string }[];
 }
 
-// Updated colors to match the reference - yellow, red, gray scheme
-const COLORS = ['#FACC15', '#EF4444', '#6B7280', '#8B5CF6', '#10B981'];
+
 
 export function CategoryDonutChart({ data }: CategoryDonutChartProps) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -35,7 +34,7 @@ export function CategoryDonutChart({ data }: CategoryDonutChartProps) {
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={COLORS[index % COLORS.length]}
+                fill={entry.color}
               />
             ))}
           </Pie>
@@ -66,7 +65,7 @@ export function CategoryDonutChart({ data }: CategoryDonutChartProps) {
           <div key={item.name} className="flex items-center gap-2">
             <div
               className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: COLORS[index % COLORS.length] }}
+              style={{ backgroundColor: item.color }}
             />
             <span className="text-xs text-muted-foreground">{item.name}</span>
           </div>
